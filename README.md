@@ -55,9 +55,12 @@ don't do it.
 
 1. The override flag is `--break-system-packages` for a reason
 2. The `apt` package manager relies on the "system" Python install
-3. If you break system Python, you break `apt`
-   * Reinstalling can be faster
-   * Fixing it can be a pain otherwise
+3. If you break system Python, you also break:
+   * `apt` (can't install software)
+   * network utilities (not always, but it hurts)
+
+Reinstalling is often faster than manually fixing the issues,
+but it is also no fun.
 
 #### Ok, what should I use then?
 
@@ -67,3 +70,4 @@ Instead, use one of the following:
 * An ordinary virtual environment (venv)
 * Any other reputable tool
 
+[uv]: https://docs.astral.sh/uv/
