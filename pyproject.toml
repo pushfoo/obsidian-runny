@@ -1,0 +1,52 @@
+[project]
+name = "obsidian-runny"
+version = "0.0.1"
+readme = "README.md"
+description = "CLI & library helpers for Obsidian helpers."
+authors = [
+    {name="pushfoo"}
+]
+requires-python = ">=3.12"
+classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Intended Audience :: Developers",
+        "Topic :: Software Development",
+        "Topic :: Software Development :: Libraries",
+    ]
+dependencies = [
+    'typing_extensions',
+    'typer==0.16.0'
+]
+
+
+[project.urls]
+Homepage = "https://github.com/pushfoo/obsidian-runny"
+Issues = "https://github.com/pushfoo/obsidian-runny/issues"
+Source = "https://github.com/pushfoo/obsidian-runny"
+
+
+[project.optional-dependencies]
+
+# Local developer environment
+dev = [
+    'pytest',  # ./make.py typecheck
+    'pyright', # ./make.py test
+]
+
+[project.scripts]
+obsidian_runny = "obsidian_runny:app"
+
+[tool.setuptools.packages.find]
+include = ["obsidian_runny", "obsidian_runny.*"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+norecursedirs = ["doc", ".venv", "env", "dist"]
