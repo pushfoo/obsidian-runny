@@ -9,11 +9,14 @@ CLI helpers for [Obsidian][] using Python 3.12+.
 
 [shell alias]: https://unix.stackexchange.com/questions/146419/creating-an-alias-for-a-bash-script
 
-Create a note from current clipboard contents:
-
 ```shell
-obsidian_runny new --name "My new note" --clipboard
+obsidian_runny new --name "New Example Note"
 ```
+This command creates a new blank note:
+
+- with the given `--name` (New Example Note)
+- inside the most recently used Obsidian vault
+
 
 ## Installing
 
