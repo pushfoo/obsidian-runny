@@ -3,43 +3,44 @@
 * Windows and Mac get OS-specific defaults
 * All other platforms (Linux, BSD, etc) assume `xdg-open`
 
-See the links below to learn more, or file an issue if
-you would like support for another approach.
+Main contents of interest:
 
-Overview of XDG-open:
+| Name                  | Description                 |
+|-----------------------|-----------------------------|
+| `platform_uri_opener` | Best guess for the platform |
+| `format_*`            | Formatting helper functions |
 
-1. https://linux.die.net/man/1/xdg-open
-2. https://wiki.archlinux.org/title/Xdg-utils#xdg-open
-3. https://portland.freedesktop.org/doc/xdg-open.html
+See the docstrings below to learn more, or file an issue
+if you would like support for another approach.
+
 """
 import platform
 import subprocess
+import logging
 
 from dataclasses import dataclass
 from urllib.parse import quote as urlquote
 from obsidian_runny.annotations import (
     V,
-    PairFormatter,
     ParamsFormatter
 )
 
 from typing_extensions import (
     Any,
     Final,
-    Callable,
-    Generic,
     Mapping,
     Protocol,
-    TypeVar
 )
+
+from obsidian_runny.mappings.param_dict import ParamDict
 
 
 POSIX_REDIRECT_OUTPUT_TO_NULL: Final[str] = "> /dev/null 2>&1"
 """Helper constant for building commands."""
 
 __all__ = [
-    "fmt_uri_parameters",
-    "fmt_uri",
+    "format_parameters",
+    "format_uri",
     "platform_uri_opener",
     "PlatformURIOpener",
     "PosixLikeURIOpener",
@@ -49,6 +50,9 @@ __all__ = [
     "XDGMimeURIOpener"
 ]
 
+log = logging.getLogger()
+
+
 _keys_are_bool = set((
     "clipboard",
     "silent",
@@ -56,8 +60,7 @@ _keys_are_bool = set((
 ))
 _bool2str = {True: "true", False: "false"}
 
-
-def fmt_uri_param_pair(k: str, v: Any) -> str:
+def format_param_pair(k: str, v: Any) -> str:
     parts = [urlquote(k)]
 
     if k in _keys_are_bool:
@@ -70,7 +73,7 @@ def fmt_uri_param_pair(k: str, v: Any) -> str:
     return "=".join(parts)
 
 
-def fmt_uri_parameters(parameters: Mapping[str, Any]) -> str:
+def format_parameters(parameters: Mapping[str, Any]) -> str:
     """Format the parameter block into a joined string.
 
     Args:
@@ -81,17 +84,17 @@ def fmt_uri_parameters(parameters: Mapping[str, Any]) -> str:
     for raw_key, raw_value in parameters.items():
         if not isinstance(raw_key, str):
             raise TypeError(f"{raw_key!r} is not a str")
-        encoded = fmt_uri_param_pair(raw_key, raw_value)
+        encoded = format_param_pair(raw_key, raw_value)
         params_quoted.append(encoded)
 
     return "&".join(params_quoted)
 
 
-def fmt_uri(
+def format_uri(
     protocol: str,
     resource: str,
     parameters: Mapping[str, V],
-    param_formatter: ParamsFormatter[[Mapping[str, V]], str] = fmt_uri_parameters
+    params_formatter: ParamsFormatter[[Mapping[str, V]], str] = format_parameters
 ) -> str:
     """Good-enough stub since urllib seems crufy and complicated."""
 
@@ -104,14 +107,20 @@ def fmt_uri(
     if parameters:
         parts.extend((
             "?",
-            fmt_uri_parameters(parameters)
+            params_formatter(parameters)
         ))
 
     return "".join(parts)
 
 
 class PlatformURIOpener(Protocol):
+    """Base class for URI openers.
 
+    This avoids making specific methods static because:
+
+    * connections could have state
+    * instances may have config values
+    """
     def _pre_uri(self, parts: list[str]) -> None:
         return
 
@@ -119,6 +128,8 @@ class PlatformURIOpener(Protocol):
         return
 
     def _run_cmd(self, parts: list[str], **kwargs) -> None:
+        cmd = " ".join(parts)
+        print(cmd, kwargs)
         subprocess.run(" ".join(parts), **kwargs)
 
     def __call__(self, uri: str) -> None:
@@ -129,7 +140,6 @@ class PlatformURIOpener(Protocol):
         self._run_cmd(parts)
 
 
-
 class PosixLikeURIOpener(PlatformURIOpener):
 
     def _run_cmd(self, parts: list[str], shell: bool = True, **kwargs):
@@ -138,10 +148,21 @@ class PosixLikeURIOpener(PlatformURIOpener):
 
 @dataclass(frozen=True)
 class XDGMimeURIOpener(PosixLikeURIOpener):
-    """Wraps `xdg-open`, a common URI / mimetype routing tool."""
+    """Wraps `xdg-open`, a common URI / mimetype routing tool.
+
+    The default for non-Mac, non-Linux systems. Overview of
+    XDG-open:
+
+    1. https://linux.die.net/man/1/xdg-open
+    2. https://wiki.archlinux.org/title/Xdg-utils#xdg-open
+    3. https://portland.freedesktop.org/doc/xdg-open.html
+    """
 
     log: bool = False
+    """Whether stderr and stdout should output."""
+
     hup: bool = False
+    """Whether the process should die after current user logout"""
 
     def _pre_uri(self, parts: list[str]) -> None:
         if not self.hup:
@@ -190,3 +211,25 @@ match (_plat_name := platform.system()):
                 f"Please file an issue https://github.com/pushfoo/obsidian-runny/issues/new"
             )
 
+
+def run_obsidian_uri_command(
+    action: str,
+    parameters: Mapping[str, V]
+) -> None:
+    """Assemble and run a URI for an Obsidian command.
+
+    See the Obsidian documentation for more info:
+    https://help.obsidian.md/Extending+Obsidian/Obsidian+URI
+
+    Example URI
+    ```
+    obsidian://new?vault=Obsidian%20Vault&file=New%20Note%20In%Root
+    ```
+    """
+    uri = format_uri(
+        protocol="obsidian",
+        resource=action,
+        parameters=ParamDict.as_instance(parameters)
+    )
+    log.info(f"uri: {uri}")
+    platform_uri_opener(uri)
