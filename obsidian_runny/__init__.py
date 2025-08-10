@@ -1,10 +1,13 @@
+from collections import UserString
 import inspect
 import logging
 
+
+from dataclasses import dataclass, fields, Field
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
-from typing import Final
+from typing import Final, get_type_hints
 
 # typer does not support | syntax, so we use Optional
 import typer
@@ -12,6 +15,7 @@ from typing_extensions import Annotated, Any, Optional
 
 
 from obsidian_runny.annotations import KEY_TUPLE, V, DictArgsLike
+from obsidian_runny.config import LogLevel
 from obsidian_runny.mappings.iteration.keygrabs import get_keys
 from obsidian_runny.mappings.param_dict import ParamDict
 from obsidian_runny.uri_handling import run_obsidian_uri_command
@@ -19,34 +23,6 @@ from obsidian_runny.uri_handling import run_obsidian_uri_command
 
 app = typer.Typer()
 log: logging.Logger | logging.LoggerAdapter
-
-
-def parse_and_set_level(level: str) -> str:
-    """Sets log level when called + can be used as a typer parser.
-
-    Arguments:
-        level: a string Python `loggin` level (`"info"` or `"INFO"`)
-
-    Raises:
-        ValueError when the name is not a logging constant.
-
-    Returns:
-        An upper-case `logging` constant name (`"INFO"`)
-    """
-    level_upper = level.upper()
-    _mapping = logging.getLevelNamesMapping()
-
-    level_int = _mapping.get(level_upper, None)
-    if level_int is None:
-        raise ValueError(f"Cannot parse logging value {level!r}")
-
-    logging.basicConfig(level=level_int)
-
-    global log
-    log = logging.getLogger(__file__)
-
-    # Return a "parsed" (validated) string
-    return level_upper
 
 
 class _URIAction(StrEnum):
@@ -73,34 +49,43 @@ class _URIAction(StrEnum):
     """Requires the Daily plugin to be enabled."""
 
 
-NoteNameOption = Annotated[
-    Optional[str], typer.Option(
-        "--name",
-        help="The name of the note to create"
-    )]
-NotePathOption = Annotated[
-    Optional[str], typer.Option(
-        "--path",
-        help="The vault-relative path of the note (overrides --name)"
-    )]
-
-NoteFileOption = Annotated[
-    Optional[Path], typer.Option(
-        "--file",
-        help="The absolute OS path of the note (overrides --path)"
-    )]
+# Will always have a value (we'll default it to "WARNING") below
+LogLevelOption = Annotated[str,
+    typer.Option("--log-level", help="The logging level to use", parser=LogLevel)]
 
 
-LogLevelOption = Annotated[
-    str, typer.Option("--log-level", help="The logging level to use", parser=parse_and_set_level)]
-VaultOption = Annotated[Optional[
-    str], typer.Option("--vault", help="The name or vault ID")]
-QueryOption = Annotated[
-    Optional[str], typer.Option("--query", help="A search query to run.")]
-PrependOption = Annotated[
-    Optional[str], typer.Option("--prepend", help="Value to prepend")]
-AppendOption = Annotated[
-    Optional[str], typer.Option("--append", help="Value to append")]
+def option(annotation, flag: str, help: str | None = None, **kwargs):
+    """Wraps the base `annotation` in `Optional` + a typer.Option.
+
+    Arguments:
+        annotation: a type or type alias.
+        flag: a `--flag` to use.
+        help: A help string.
+        kwargs: Additional values to pass to `typer.Option`
+    Returns:
+        An typer-annotated type alias.
+    """
+    return Annotated[
+        Optional[annotation],
+        typer.Option(flag, help=help, **kwargs)
+    ]
+
+
+NoteNameOption = option(
+    str, "--name", help="The name of the note to create")
+NotePathOption = option(
+    str, "--path", help="The vault-relative path of the note (overrides --name)")
+NoteFileOption = option(
+    Path, "--file", help="The absolute OS path of the note (overrides --path)")
+
+VaultOption = option(
+    str, "--vault", help="The name or vault ID")
+QueryOption = option(
+    str, "--query", help="A search query to run.")
+PrependOption = option(
+    str, "--prepend", help="Value to prepend")
+AppendOption = option(
+    str, "--append", help="Value to append")
 
 
 # Q: Why not dataclass inheritance and an adapter (hint->typer/click)?
